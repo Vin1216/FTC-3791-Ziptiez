@@ -14,6 +14,7 @@ import com.acmerobotics.roadrunner.TranslationalVelConstraint;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.acmerobotics.roadrunner.ftc.Actions;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -30,9 +31,10 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import java.util.ArrayList;
 import java.util.List;
 
+@Disabled
 @Config
 @Autonomous
-public class ItDLeftAuto extends LinearOpMode {
+public class ItDLeftAutoAlt extends LinearOpMode {
 
     public class Lift {
         private DcMotorEx lift;
@@ -255,7 +257,7 @@ public class ItDLeftAuto extends LinearOpMode {
 
 
         TrajectoryActionBuilder PreloadTraj = drive.actionBuilder(startpose)
-                .splineToSplineHeading(new Pose2d(61.5,51.5,Math.toRadians(45)),Math.toRadians(0));
+                .splineToSplineHeading(new Pose2d(59.5,53.5,Math.toRadians(45)),Math.toRadians(0));
 
         TrajectoryActionBuilder TopSampleTraj = PreloadTraj.fresh()
                 .turnTo(-135)
@@ -264,24 +266,25 @@ public class ItDLeftAuto extends LinearOpMode {
 
         TrajectoryActionBuilder MiddleSampleTraj = PreloadTraj.fresh()
                 .turnTo(-135)
-                .splineToLinearHeading(new Pose2d(44,24,Math.toRadians(180)),Math.toRadians(0)) //This may need to be spline heading
-                .splineToConstantHeading(new Vector2d(54,24),Math.toRadians(180));
+                .splineToLinearHeading(new Pose2d(60,48,Math.toRadians(180)),Math.toRadians(0)); //This may need to be spline heading
+//                .splineToConstantHeading(new Vector2d(54,24),Math.toRadians(180));
 
         TrajectoryActionBuilder BottomSampleTraj = PreloadTraj.fresh()
 //                .turnTo(Math.toRadians(270))
 //                .lineToY(36)
 //                .strafeTo(new Vector2d(-24, 36));
-                .splineToLinearHeading(new Pose2d(31.5,44,Math.toRadians(135)),Math.toRadians(135)); //This may need to be spline heading
+                .splineToLinearHeading(new Pose2d(30.75,44,Math.toRadians(135)),Math.toRadians(135)); //This may need to be spline heading
 
 
         TrajectoryActionBuilder MoveBackwardBottom = null;
+        TrajectoryActionBuilder MoveBackwardMiddle = null;
 
         String state = "ScorePreload";
 
         // Create a list of the possible states where the samples are. This is to keep track of which states have been used already.
         List<String> PickupSampleStates = new ArrayList<>();
         PickupSampleStates.add("PickupBottomSample");
-//        PickupSampleStates.add("PickupMiddleSample");
+        PickupSampleStates.add("PickupMiddleSample");
 //        PickupSampleStates.add("PickupTopSample");
         //Middle and top are disabled for now since the systems do not move fast enough
 
@@ -314,7 +317,7 @@ public class ItDLeftAuto extends LinearOpMode {
                         ));
                         myTimer.reset();
                         while(myTimer.milliseconds() < 1000 && opModeIsActive()) {
-                            Bucket.setPosition(0.3);
+                            Bucket.setPosition(0.4);
                         }
                         Bucket.setPosition(1);
                         drive.updatePoseEstimate();
@@ -322,15 +325,32 @@ public class ItDLeftAuto extends LinearOpMode {
                                 lift.liftDown(),
                                 arm.armUp()
                         ));
+//                        ScoreOnHighBasket();
                         state = "PickupBottomSample";
                         break;
                     case "PickupTopSample":
                         Actions.runBlocking(new SequentialAction(TopSampleTraj.build()));
+//                        PickupSample(10);
                         PickupSampleStates.remove("PickupTopSample");
                         state = "Score";
                         break;
                     case "PickupMiddleSample":
-                        Actions.runBlocking(new SequentialAction(MiddleSampleTraj.build()));
+                        Actions.runBlocking(new SequentialAction(
+                                MiddleSampleTraj.build(),
+                                arm.armDown()
+                        ));
+                        Intake.setPower(-0.7);
+                        MoveBackwardMiddle = drive.actionBuilder(new Pose2d(60,48,Math.toRadians(180)))
+                                .setReversed(true)
+                                .lineToY(35,new TranslationalVelConstraint(20),new ProfileAccelConstraint(-10,20))
+                                .waitSeconds(0.2);
+                        Actions.runBlocking(new SequentialAction(
+                                MoveBackwardMiddle.build()
+                        ));
+                        Actions.runBlocking(new SequentialAction(arm.armUp()));
+                        telemetry.addLine("Arm done moving");
+                        telemetry.update();
+                        Intake.setPower(0);
                         PickupSampleStates.remove("PickupMiddleSample");
                         state = "Score";
                         break;
@@ -343,7 +363,7 @@ public class ItDLeftAuto extends LinearOpMode {
                         MoveBackwardBottom = drive.actionBuilder(new Pose2d(31,44,Math.toRadians(135)))
                                 .setReversed(true)
                                 .lineToY(35,new TranslationalVelConstraint(20),new ProfileAccelConstraint(-10,20))
-                                .waitSeconds(0.5);
+                                .waitSeconds(0.2);
                         Actions.runBlocking(new SequentialAction(
                                 MoveBackwardBottom.build()
                         ));
@@ -361,14 +381,14 @@ public class ItDLeftAuto extends LinearOpMode {
 //                        DetectAprilTags();
                         if(AprilTagDetected) {
                             Score = drive.actionBuilder(new Pose2d(myAprilTagRobotPoseX,myAprilTagRobotPoseY,myAprilTagRobotPoseYaw))
-                                    .splineToSplineHeading(new Pose2d(58,46,Math.toRadians(45)),Math.toRadians(0));
+                                    .splineToSplineHeading(new Pose2d(58,49,Math.toRadians(45)),Math.toRadians(0));
                             telemetry.addLine("AprilTag found");
                             telemetry.update();
                         }
                         else {
                             drive.updatePoseEstimate();
                             Score = drive.actionBuilder(drive.pose)
-                                    .splineToSplineHeading(new Pose2d(58,46,Math.toRadians(45)),Math.toRadians(0));
+                                    .splineToSplineHeading(new Pose2d(58,49,Math.toRadians(45)),Math.toRadians(0));
                             telemetry.addLine("No AprilTag found");
                             telemetry.update();
                         }
@@ -399,14 +419,14 @@ public class ItDLeftAuto extends LinearOpMode {
 //                        Actions.runBlocking(new SequentialAction(TurnTo210.build()));
 
 
-                        state = "AAAAAAAAAAAAAAAAAAAA";
+//                        state = "AAAAAAAAAAAAAAAAAAAA";
                         // Goes park if there are no more samples to collect
-//                        if(PickupSampleStates.isEmpty()) {
-//                            state = "Park";
-//                        }
-//                        else {
-//                            state = "PickupBottomSample";
-//                        }
+                        if(PickupSampleStates.isEmpty()) {
+                            state = "Park";
+                        }
+                        else {
+                            state = "PickupBottomSample";
+                        }
                         break;
                     case "Park":
                         drive.updatePoseEstimate();
